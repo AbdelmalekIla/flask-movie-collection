@@ -7,21 +7,16 @@ from wtforms.validators import DataRequired
 import requests
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'YOUR SECRET KEY '
+app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
 Bootstrap(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///new-books-collection.db"
+
 db = SQLAlchemy(app)
 
+class MovieB(FlaskForm):
+    title = StringField('Movie Name', validators=[DataRequired()])
+    submit = SubmitField('Submit')
 
-# class MovieB(FlaskForm):
-#     title = StringField('Movie Name', validators=[DataRequired()])
-#     year = StringField('year', validators=[DataRequired()])
-#     description = StringField('description', validators=[DataRequired()])
-#     rating = StringField('rating', validators=[DataRequired()])
-#     ranking = StringField('ranking', validators=[DataRequired()])
-#     review = StringField('review', validators=[DataRequired()])
-#     img_url = StringField('rating', validators=[DataRequired(), validators.URL()])
-#     submit = SubmitField('Submit')
 
 class FormEdit(FlaskForm):
     rating = StringField('rating', validators=[DataRequired()])
@@ -45,21 +40,27 @@ with app.app_context():
 
 
     db.create_all()
-    movie = Movie(
-        title="Phone Booth",
-        year=2002,
-        description="Publicist Stuart Shepard finds himself trapped in a phone booth, pinned down by an extortionist's sniper rifle. Unable to leave or receive outside help, Stuart's negotiation with the caller leads to a jaw-dropping climax.",
-        rating=7.3,
-        ranking=10,
-        review="My favourite character was the caller.",
-        img_url="https://image.tmdb.org/t/p/w500/tjrX2oWRCM3Tvarz38zlZM7Uc10.jpg"
-    )
-    # db.session.add(movie)
-    db.session.commit()
+    def update():
+        movie = Movie(
+            title="Phone Booth",
+            year=2002,
+            description="Publicist Stuart Shepard finds himself trapped in a phone booth, pinned down by an extortionist's sniper rifle. Unable to leave or receive outside help, Stuart's negotiation with the caller leads to a jaw-dropping climax.",
+            rating=7.3,
+            ranking=10,
+            review="My favourite character was the caller.",
+            img_url="https://image.tmdb.org/t/p/w500/tjrX2oWRCM3Tvarz38zlZM7Uc10.jpg"
+        )
+        db.session.add(movie)
+        db.session.commit()
 
 
 @app.route("/")
 def home():
+    if request.method == 'POST':
+        update()
+        new_movie = Movie.query.all()
+        return render_template("index.html", movie=new_movie)
+
     new_movie = Movie.query.all()
     return render_template("index.html", movie=new_movie)
 
@@ -81,7 +82,7 @@ def edit():
 
 @app.route('/delete')
 def delete():
-    my_form = FormEdit()
+    # my_form = FormEdit()
     id_ = request.args.get("id_")
     movie_id = id_
     current_movie = Movie.query.get(movie_id)
@@ -89,6 +90,26 @@ def delete():
     db.session.commit()
     db.session.commit()
     return redirect(url_for('home'))
+
+
+@app.route('/add', methods=['GET', 'POST'])
+def add():
+    movie_form = MovieB()
+    if request.method == 'POST':
+        header = {
+            "Authorization": "Bearer you api key"
+        }
+        body = {
+            'query': request.form['title'],
+            'include_adult': False,
+            'language': 'en-US'
+
+        }
+        response = requests.get("https://api.themoviedb.org/3/search/movie", headers=header, params=body)
+        movie_data = response.json()['results']
+        return render_template('select.html', data=movie_data)
+
+    return render_template('add.html', form=movie_form)
 
 
 if __name__ == '__main__':
