@@ -7,11 +7,12 @@ from wtforms.validators import DataRequired
 import requests
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = '8BYkEfBA6O6donzWlSihBXox7C0sKR6b'
+app.config['SECRET_KEY'] = 'YOUR SECRET KEY'
 Bootstrap(app)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///new-books-collection.db"
 
 db = SQLAlchemy(app)
+
 
 class MovieB(FlaskForm):
     title = StringField('Movie Name', validators=[DataRequired()])
@@ -27,52 +28,44 @@ class FormEdit(FlaskForm):
 with app.app_context():
     class Movie(db.Model):
         id = db.Column(db.Integer, primary_key=True)
-        title = db.Column(db.String(80), unique=True, nullable=False)
-        year = db.Column(db.Integer, nullable=False)
-        description = db.Column(db.String(200), nullable=False)
-        rating = db.Column(db.Float, nullable=False)
-        ranking = db.Column(db.Integer, nullable=False)
-        review = db.Column(db.String(100), nullable=False)
-        img_url = db.Column(db.String(100), nullable=False)
+        title = db.Column(db.String(80), unique=True)
+        year = db.Column(db.Integer)
+        description = db.Column(db.String(200))
+        rating = db.Column(db.Float)
+        ranking = db.Column(db.Integer)
+        review = db.Column(db.String(100))
+        img_url = db.Column(db.String(100))
 
         def __repr__(self):
             return f'<Book {self.title}>'
 
 
     db.create_all()
-    def update():
-        movie = Movie(
-            title="Phone Booth",
-            year=2002,
-            description="Publicist Stuart Shepard finds himself trapped in a phone booth, pinned down by an extortionist's sniper rifle. Unable to leave or receive outside help, Stuart's negotiation with the caller leads to a jaw-dropping climax.",
-            rating=7.3,
-            ranking=10,
-            review="My favourite character was the caller.",
-            img_url="https://image.tmdb.org/t/p/w500/tjrX2oWRCM3Tvarz38zlZM7Uc10.jpg"
-        )
-        db.session.add(movie)
-        db.session.commit()
 
 
 @app.route("/")
 def home():
-    if request.method == 'POST':
-        update()
-        new_movie = Movie.query.all()
-        return render_template("index.html", movie=new_movie)
+    all_movies = Movie.query.order_by(Movie.rating).all()
 
-    new_movie = Movie.query.all()
-    return render_template("index.html", movie=new_movie)
+    for i in range(len(all_movies)):
+        all_movies[i].ranking = len(all_movies) - i
+
+    db.session.commit()
+    return render_template("index.html", movie=all_movies)
 
 
 @app.route('/edit', methods=['GET', 'POST'])
 def edit():
     my_form = FormEdit()
     id_ = request.args.get("id_")
-    if request.method == 'POST':
+    if id_:
+        pass
+    else:
+        id_ = request.args.get("id_")
+    if my_form.validate_on_submit():
         movie_id = id_
         current_movie = Movie.query.get(movie_id)
-        current_movie.rating = request.form['rating']
+        current_movie.rating = request.form.get('rating')
         current_movie.review = request.form['review']
         db.session.commit()
         return redirect(url_for('home'))
@@ -85,9 +78,9 @@ def delete():
     # my_form = FormEdit()
     id_ = request.args.get("id_")
     movie_id = id_
+
     current_movie = Movie.query.get(movie_id)
     db.session.delete(current_movie)
-    db.session.commit()
     db.session.commit()
     return redirect(url_for('home'))
 
@@ -95,9 +88,9 @@ def delete():
 @app.route('/add', methods=['GET', 'POST'])
 def add():
     movie_form = MovieB()
-    if request.method == 'POST':
+    if movie_form.validate_on_submit():
         header = {
-            "Authorization": "Bearer you api key"
+            "Authorization": "Bearer SECRET APIKEY"
         }
         body = {
             'query': request.form['title'],
@@ -110,6 +103,29 @@ def add():
         return render_template('select.html', data=movie_data)
 
     return render_template('add.html', form=movie_form)
+
+
+@app.route('/find')
+def find_movie():
+    movie_id = request.args.get("id")
+    header_ = {
+        "Authorization": "Bearer SECRET APIKEY"}
+    body_ = {
+        'language': 'en-US'
+    }
+    if movie_id:
+        res = requests.get(f"https://api.themoviedb.org/3/movie/{movie_id}", headers=header_, params=body_)
+        data = res.json()
+        movie = Movie(
+            id=data['id'],
+            title=data['title'],
+            year=data["release_date"].split("-")[0],
+            img_url=f"https://image.tmdb.org/t/p/w500/{data['poster_path']}",
+            description=data["overview"]
+        )
+        db.session.add(movie)
+        db.session.commit()
+        return redirect(url_for('edit', id_=data['id']))
 
 
 if __name__ == '__main__':
